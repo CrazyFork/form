@@ -50,6 +50,15 @@ export function treeTraverse(path = '', tree, isLeafNode, errorMessage, callback
   }
 }
 
+/**
+ *  convert nestFields into a flatten strucuture
+ * @param {*} maybeNestedFields 
+ *  on of :
+ *    - {a: {b: c}, d: {e: f}} -> {'a.b': c, 'd.e': f}
+ *    - [[b, c], [e, f]] -> {'[0][0]': b, [0][1]: c, [1][0]: e, [1][1]: f}
+ * @param {*} isLeafNode 
+ * @param {*} errorMessage 
+ */
 export function flattenFields(maybeNestedFields, isLeafNode, errorMessage) {
   const fields = {};
   treeTraverse(undefined, maybeNestedFields, isLeafNode, errorMessage, (path, node) => {
@@ -58,8 +67,14 @@ export function flattenFields(maybeNestedFields, isLeafNode, errorMessage) {
   return fields;
 }
 
+/**
+ * 
+ * @param {trigger: string[]|string, rules: any[]} validate 
+ * @param {any[]} rules,  rules to be append to validate
+ * @param {string} validateTrigger , trigger 
+ */
 export function normalizeValidateRules(validate, rules, validateTrigger) {
-  const validateRules = validate.map((item) => {
+  const validateRules = validate.map((item) => { // unify
     const newItem = {
       ...item,
       trigger: item.trigger || [],
@@ -78,6 +93,7 @@ export function normalizeValidateRules(validate, rules, validateTrigger) {
   return validateRules;
 }
 
+// extract all trigger from validateRules
 export function getValidateTriggers(validateRules) {
   return validateRules
     .filter(item => !!item.rules && item.rules.length)
@@ -85,6 +101,7 @@ export function getValidateTriggers(validateRules) {
     .reduce((pre, curr) => pre.concat(curr), []);
 }
 
+// return checked status on a checked type or target.value if otherwise
 export function getValueFromEvent(e) {
   // To support custom element
   if (!e || !e.target) {
@@ -106,6 +123,18 @@ export function getErrorStrs(errors) {
   return errors;
 }
 
+/**
+ * overloaded function, has type
+ *  (cb)->
+ *  (names, )->
+ *  (names, callback)->
+ *  (options, callback) - 
+ *  (names, option, callback)->
+ * 
+ * @param {*} ns 
+ * @param {*} opt 
+ * @param {*} cb 
+ */
 export function getParams(ns, opt, cb) {
   let names = ns;
   let options = opt;
@@ -139,6 +168,10 @@ export function isEmptyObject(obj) {
   return Object.keys(obj).length === 0;
 }
 
+/**
+ * 
+ * @param {rules:[]} validate
+ */
 export function hasRules(validate) {
   if (validate) {
     return validate.some((item) => {

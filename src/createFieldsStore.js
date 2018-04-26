@@ -6,6 +6,7 @@ import {
   startsWith,
 } from './utils';
 
+// b = `a[` or `a.`
 function partOf(a, b) {
   return b.indexOf(a) === 0 && ['.', '['].indexOf(b[a.length]) !== -1;
 }
@@ -20,6 +21,7 @@ class FieldsStore {
     this.fields = this.flattenFields(fields);
   }
 
+  // flatten form fields & return 
   flattenFields(fields) {
     return flattenFields(
       fields,
@@ -28,6 +30,7 @@ class FieldsStore {
     );
   }
 
+  // return a flattened obj that register in `this.getAllFieldsName`
   flattenRegisteredFields(fields) {
     const validFieldsName = this.getAllFieldsName();
     return flattenFields(
@@ -50,6 +53,7 @@ class FieldsStore {
     });
   }
 
+  // update form fields values, & run `normalize` on each field's value
   setFields(fields) {
     const fieldsMeta = this.fieldsMeta;
     const nowFields = {
@@ -76,6 +80,7 @@ class FieldsStore {
     this.fields = nowFields;
   }
 
+  // get default obj with shape of `{names: {}}`
   resetFields(ns) {
     const { fields } = this;
     const names = ns ?
@@ -94,11 +99,13 @@ class FieldsStore {
     this.fieldsMeta[name] = meta;
   }
 
+  // get field meta
   getFieldMeta(name) {
     this.fieldsMeta[name] = this.fieldsMeta[name] || {};
     return this.fieldsMeta[name];
   }
 
+  // get value & initialValue from name field
   getValueFromFields(name, fields) {
     const field = fields[name];
     if (field && 'value' in field) {
@@ -108,12 +115,14 @@ class FieldsStore {
     return fieldMeta && fieldMeta.initialValue;
   }
 
+  // collect all fields value
   getAllValues = () => {
     const { fieldsMeta, fields } = this;
     return Object.keys(fieldsMeta)
       .reduce((acc, name) => set(acc, name, this.getValueFromFields(name, fields)), {});
   }
 
+  // return non hiden keys in meta
   getValidFieldsName() {
     const { fieldsMeta } = this;
     return fieldsMeta ?
@@ -126,9 +135,11 @@ class FieldsStore {
     return fieldsMeta ? Object.keys(fieldsMeta) : [];
   }
 
+  // get full name array that contains maybePartialName
   getValidFieldsFullName(maybePartialName) {
     const maybePartialNames = Array.isArray(maybePartialName) ?
       maybePartialName : [maybePartialName];
+    // fullName is shape like `a.b.c` or `a[b[c`?
     return this.getValidFieldsName()
       .filter(fullName => maybePartialNames.some(partialName => (
         fullName === partialName || (
@@ -137,7 +148,14 @@ class FieldsStore {
         )
       )));
   }
-
+  /**
+   * 
+   * @param {*} fieldMeta 
+   *  - getValueProps: (value)-> any
+   *  - valuePropName: string
+   * 
+   * @return {[valuePropName]: value}
+   */
   getFieldValuePropValue(fieldMeta) {
     const { name, getValueProps, valuePropName } = fieldMeta;
     const field = this.getField(name);
@@ -184,6 +202,8 @@ class FieldsStore {
     return fields.reduce((acc, f) => set(acc, f, getter(f)), {});
   }
 
+  // name, if name if fullpath return getter(name)
+  // or collect all fullNames' nested values that start with name
   getNestedField(name, getter) {
     const fullNames = this.getValidFieldsFullName(name);
     if (
@@ -205,19 +225,23 @@ class FieldsStore {
       );
   }
 
+  // get list of all value of all field that starts with array of name path 
   getFieldsValue = (names) => {
     return this.getNestedFields(names, this.getFieldValue);
   }
 
+  // get all value of all fields that start with name path
   getFieldValue = (name) => {
     const { fields } = this;
     return this.getNestedField(name, (fullName) => this.getValueFromFields(fullName, fields));
   }
 
+  // get all names fields' error attributes
   getFieldsError = (names) => {
     return this.getNestedFields(names, this.getFieldError);
   }
 
+  // get errors that nested in field that start with name path
   getFieldError = (name) => {
     return this.getNestedField(
       name,
@@ -225,19 +249,23 @@ class FieldsStore {
     );
   }
 
+  // is name field been validating1
   isFieldValidating = (name) => {
     return this.getFieldMember(name, 'validating');
   }
 
+  // is any names or validFieldsName been validating
   isFieldsValidating = (ns) => {
     const names = ns || this.getValidFieldsName();
     return names.some((n) => this.isFieldValidating(n));
   }
 
+  // is target name field been touched
   isFieldTouched = (name) => {
     return this.getFieldMember(name, 'touched');
   }
 
+  // is any field been touched
   isFieldsTouched = (ns) => {
     const names = ns || this.getValidFieldsName();
     return names.some((n) => this.isFieldTouched(n));
@@ -250,6 +278,7 @@ class FieldsStore {
     return names.every(n => !partOf(n, name) && !partOf(name, n));
   }
 
+  // well clean datas
   clearField(name) {
     delete this.fields[name];
     delete this.fieldsMeta[name];

@@ -23,12 +23,12 @@ function createBaseForm(option = {}, mixins = []) {
   const {
     validateMessages,
     onFieldsChange,
-    onValuesChange,
+    onValuesChange, // onValuesChange(this.props, changedValues, allValues);
     mapProps = identity,
     mapPropsToFields,
     fieldNameProp,
-    fieldMetaProp,
-    fieldDataProp,
+    fieldMetaProp, // meta prop name to be bind onto input props
+    fieldDataProp, // data props, to be binded onto input props
     formPropName = 'form',
     // @deprecated
     withRef,
@@ -45,6 +45,8 @@ function createBaseForm(option = {}, mixins = []) {
         this.instances = {};
         this.cachedBind = {};
         this.clearedFieldMetaCache = {};
+
+        // delegate methods call to this.fieldStore
         // HACK: https://github.com/ant-design/ant-design/issues/6406
         ['getFieldsValue',
          'getFieldValue',
@@ -78,22 +80,24 @@ function createBaseForm(option = {}, mixins = []) {
 
       onCollectCommon(name, action, args) {
         const fieldMeta = this.fieldsStore.getFieldMeta(name);
+        // invoke action on fieldMeta or fieldsMeta.originalProps
         if (fieldMeta[action]) {
           fieldMeta[action](...args);
         } else if (fieldMeta.originalProps && fieldMeta.originalProps[action]) {
           fieldMeta.originalProps[action](...args);
         }
+        // fieldMeta.getValueFromEvent(...args) or return event(=args) 's target value|checked status
         const value = fieldMeta.getValueFromEvent ?
           fieldMeta.getValueFromEvent(...args) :
           getValueFromEvent(...args);
-        if (onValuesChange && value !== this.fieldsStore.getFieldValue(name)) {
+        if (onValuesChange && value !== this.fieldsStore.getFieldValue(name)) { // trigger onValuesChange event
           const valuesAll = this.fieldsStore.getAllValues();
           const valuesAllSet = {};
           valuesAll[name] = value;
           Object.keys(valuesAll).forEach(key => set(valuesAllSet, key, valuesAll[key]));
-          onValuesChange(this.props, set({}, name, value), valuesAllSet);
+          onValuesChange(this.props, set({}, name, value), valuesAllSet); // trigger change
         }
-        const field = this.fieldsStore.getField(name);
+        const field = this.fieldsStore.getField(name); // sync this.fieldStore.fields
         return ({ name, field: { ...field, value, touched: true }, fieldMeta });
       },
 
@@ -102,7 +106,7 @@ function createBaseForm(option = {}, mixins = []) {
         const { validate } = fieldMeta;
         const newField = {
           ...field,
-          dirty: hasRules(validate),
+          dirty: hasRules(validate), // :todo, dirty is used for what ?
         };
         this.setFields({
           [name]: newField,
@@ -115,6 +119,7 @@ function createBaseForm(option = {}, mixins = []) {
           ...field,
           dirty: true,
         };
+        // so here it just run validation methods, trigger no callback 
         this.validateFieldsInternal([newField], {
           action,
           options: {
@@ -123,6 +128,10 @@ function createBaseForm(option = {}, mixins = []) {
         });
       },
 
+
+      // name, prop name
+      // fn(name, action, )-> ()
+      // return {[action]: fn}
       getCacheBind(name, action, fn) {
         if (!this.cachedBind[name]) {
           this.cachedBind[name] = {};
@@ -134,6 +143,7 @@ function createBaseForm(option = {}, mixins = []) {
         return cache[action];
       },
 
+      // recovery field data & delete recoveried data
       recoverClearedField(name) {
         if (this.clearedFieldMetaCache[name]) {
           this.fieldsStore.setFields({
@@ -175,6 +185,11 @@ function createBaseForm(option = {}, mixins = []) {
         };
       },
 
+      /**
+       * 
+       * @param {string} name , field name
+       * @param {object} usersFieldOption, meta props
+       */
       getFieldProps(name, usersFieldOption = {}) {
         if (!name) {
           throw new Error('Must call `getFieldProps` with valid name string!');
@@ -194,7 +209,7 @@ function createBaseForm(option = {}, mixins = []) {
 
         const fieldOption = {
           name,
-          trigger: DEFAULT_TRIGGER,
+          trigger: DEFAULT_TRIGGER, // onchage
           valuePropName: 'value',
           validate: [],
           ...usersFieldOption,
@@ -208,12 +223,13 @@ function createBaseForm(option = {}, mixins = []) {
         } = fieldOption;
 
         const fieldMeta = this.fieldsStore.getFieldMeta(name);
-        if ('initialValue' in fieldOption) {
+        if ('initialValue' in fieldOption) { // override initialValue here ?
           fieldMeta.initialValue = fieldOption.initialValue;
         }
 
         const inputProps = {
           ...this.fieldsStore.getFieldValuePropValue(fieldOption),
+          // after binding, saveRef becomes type with (component)-> void
           ref: this.getCacheBind(name, `${name}__ref`, this.saveRef),
         };
         if (fieldNameProp) {
@@ -253,24 +269,31 @@ function createBaseForm(option = {}, mixins = []) {
         return this.instances[name];
       },
 
+      /**
+       * return all fieldMeta validation rules or the ones contains target action
+       * @param {validate: {rules: [], trigger: string[]}} fieldMeta 
+       * @param {*} action 
+       */
       getRules(fieldMeta, action) {
         const actionRules = fieldMeta.validate.filter((item) => {
           return !action || item.trigger.indexOf(action) >= 0;
         }).map((item) => item.rules);
-        return flattenArray(actionRules);
+        return flattenArray(actionRules); // return rules as one demension array
       },
-
+      
+      // set changed fields & trigger callback after view is updated 
       setFields(maybeNestedFields, callback) {
         const fields = this.fieldsStore.flattenRegisteredFields(maybeNestedFields);
-        this.fieldsStore.setFields(fields);
+        this.fieldsStore.setFields(fields); // override change fields
         if (onFieldsChange) {
           const changedFields = Object.keys(fields)
             .reduce((acc, name) => set(acc, name, this.fieldsStore.getField(name)), {});
           onFieldsChange(this.props, changedFields, this.fieldsStore.getNestedAllFields());
         }
-        this.forceUpdate(callback);
+        this.forceUpdate(callback); // :bm, this is not cool, man!
       },
 
+      // reset fields value
       resetFields(ns) {
         const newFields = this.fieldsStore.resetFields(ns);
         if (Object.keys(newFields).length > 0) {
@@ -284,6 +307,7 @@ function createBaseForm(option = {}, mixins = []) {
         }
       },
 
+      // set fields value
       setFieldsValue(changedValues, callback) {
         const { fieldsMeta } = this.fieldsStore;
         const values = this.fieldsStore.flattenRegisteredFields(changedValues);
@@ -305,28 +329,30 @@ function createBaseForm(option = {}, mixins = []) {
           return acc;
         }, {});
         this.setFields(newFields, callback);
-        if (onValuesChange) {
+        if (nValuesChange) {
           const allValues = this.fieldsStore.getAllValues();
           onValuesChange(this.props, changedValues, allValues);
         }
       },
 
       saveRef(name, _, component) {
-        if (!component) {
+        // so, if component is absent we preseve its value into clearedFieldMetaCache 
+        // so we can bind them back when the component is added back again
+        if (!component) { 
           // after destroy, delete data
           this.clearedFieldMetaCache[name] = {
             field: this.fieldsStore.getField(name),
             meta: this.fieldsStore.getFieldMeta(name),
           };
           this.fieldsStore.clearField(name);
-          delete this.instances[name];
+          delete this.instances[name]; // name -> actual form item component
           delete this.cachedBind[name];
           return;
         }
         this.recoverClearedField(name);
         const fieldMeta = this.fieldsStore.getFieldMeta(name);
         if (fieldMeta) {
-          const ref = fieldMeta.ref;
+          const ref = fieldMeta.ref; // (component)->void
           if (ref) {
             if (typeof ref === 'string') {
               throw new Error(`can not set ref string for ${name}`);
@@ -341,14 +367,14 @@ function createBaseForm(option = {}, mixins = []) {
         fieldNames,
         action,
         options = {},
-      }, callback) {
+      }, callback) { // (errors: [], fieldValues: any)=>()
         const allRules = {};
         const allValues = {};
         const allFields = {};
         const alreadyErrors = {};
         fields.forEach((field) => {
           const name = field.name;
-          if (options.force !== true && field.dirty === false) {
+          if (options.force !== true && field.dirty === false) { // if not dirty & force, reset errors and return 
             if (field.errors) {
               set(alreadyErrors, name, { errors: field.errors });
             }
@@ -370,14 +396,14 @@ function createBaseForm(option = {}, mixins = []) {
         Object.keys(allValues).forEach((f) => {
           allValues[f] = this.fieldsStore.getFieldValue(f);
         });
-        if (callback && isEmptyObject(allFields)) {
+        if (callback && isEmptyObject(allFields)) { // validating is not trggered, used last result, so callback is called with changes
           callback(isEmptyObject(alreadyErrors) ? null : alreadyErrors,
             this.fieldsStore.getFieldsValue(fieldNames));
           return;
         }
         const validator = new AsyncValidator(allRules);
         if (validateMessages) {
-          validator.messages(validateMessages);
+          validator.messages(validateMessages); // :?
         }
         validator.validate(allValues, options, (errors) => {
           const errorsGroup = {
@@ -387,7 +413,8 @@ function createBaseForm(option = {}, mixins = []) {
             errors.forEach((e) => {
               const fieldName = e.field;
               const field = get(errorsGroup, fieldName);
-              if (typeof field !== 'object' || Array.isArray(field)) {
+              // wtf here assert that field is array ? type field != object should be enough
+              if (typeof field !== 'object' || Array.isArray(field)) { // push each error into respect error fields 
                 set(errorsGroup, fieldName, { errors: [] });
               }
               const fieldErrors = get(errorsGroup, fieldName.concat('.errors'));
@@ -396,7 +423,7 @@ function createBaseForm(option = {}, mixins = []) {
           }
           const expired = [];
           const nowAllFields = {};
-          Object.keys(allRules).forEach((name) => {
+          Object.keys(allRules).forEach((name) => { // name is each rule, 
             const fieldErrors = get(errorsGroup, name);
             const nowField = this.fieldsStore.getField(name);
             // avoid concurrency problems
@@ -412,7 +439,7 @@ function createBaseForm(option = {}, mixins = []) {
               nowAllFields[name] = nowField;
             }
           });
-          this.setFields(nowAllFields);
+          this.setFields(nowAllFields); // update view again
           if (callback) {
             if (expired.length) {
               expired.forEach(({ name }) => {
@@ -433,6 +460,12 @@ function createBaseForm(option = {}, mixins = []) {
         });
       },
 
+      /**
+       * validate all form fields, or some selected ones 
+       * @param {*} ns 
+       * @param {*} opt 
+       * @param {*} cb 
+       */
       validateFields(ns, opt, cb) {
         const { names, callback, options } = getParams(ns, opt, cb);
         const fieldNames = names ?
@@ -520,7 +553,7 @@ function createBaseForm(option = {}, mixins = []) {
       },
     });
 
-    return argumentContainer(Form, WrappedComponent);
+    return argumentContainer(Form, WrappedComponent); // copy displayName & static properties
   };
 }
 

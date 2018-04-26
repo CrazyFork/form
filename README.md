@@ -1,3 +1,9 @@
+
+# :(, not happy man!, I am not happy about this
+
+* why it has to force me to read the god damn source code !, it took me nearly 4 hours to get it almost done!
+
+
 # rc-form
 
 React High Order Form Component.
